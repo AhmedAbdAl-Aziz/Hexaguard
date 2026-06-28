@@ -1,0 +1,23 @@
+# Logs & Debugs
+Client/logs
+Client/*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Dependencies
+Client/node_modules/
+
+# Production Builds
+Client/dist/
+Client/dist-ssr/
+
+# IDE / Editor Files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
