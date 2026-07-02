@@ -1,0 +1,328 @@
+swagger: "2.0"
+info:
+  title: HexaGuard API
+  description: CVE tracking, customer tech-stack matching, and real-time alert dispatch.
+  version: "1.0.0"
+host: localhost:5000
+basePath: /
+schemes:
+  - http
+consumes:
+  - application/json
+produces:
+  - application/json
+securityDefinitions:
+  BearerAuth:
+    type: apiKey
+    name: Authorization
+    in: header
+    description: "JWT token from /api/auth/login — format: Bearer {token}"
+
+tags:
+  - name: Health
+    description: Server status
+  - name: Auth
+    description: Authentication
+  - name: CVEs
+    description: Vulnerability records
+  - name: Customers
+    description: Customer management
+  - name: Alerts
+    description: Alert dispatch history
+
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns server status and UTC timestamp.
+      responses:
+        200:
+          description: Server is running
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: ok
+              time:
+                type: string
+                example: "2026-07-02T13:00:00+00:00"
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      description: Authenticate with username and password. Returns JWT access token.
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required: [username, password]
+            properties:
+              username:
+                type: string
+                example: admin
+              password:
+                type: string
+                example: admin123
+      responses:
+        200:
+          description: Login successful
+          schema:
+            type: object
+            properties:
+              access_token:
+                type: string
+              user:
+                type: object
+        401:
+          description: Invalid credentials
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user profile
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: User profile
+        401:
+          description: Missing or invalid token
+
+  /api/cves/:
+    get:
+      tags: [CVEs]
+      summary: List CVEs
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: severity
+          type: string
+          enum: [CRITICAL, HIGH, MEDIUM, LOW, ALL]
+          description: Filter by severity
+        - in: query
+          name: technology
+          type: string
+          description: Filter by affected technology
+        - in: query
+          name: search
+          type: string
+          description: Search CVE ID or description
+      responses:
+        200:
+          description: List of CVE records
+    post:
+      tags: [CVEs]
+      summary: Ingest CVE (triggers alert dispatcher)
+      description: Admin JWT or scraper Bearer token required. Creates CVE and dispatches alerts to matching customers.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required: [cve_id, severity, cvss_score, affected_technologies, description, remediation]
+            properties:
+              cve_id:
+                type: string
+                example: CVE-2026-TEST-001
+              severity:
+                type: string
+                enum: [CRITICAL, HIGH, MEDIUM, LOW]
+                example: HIGH
+              cvss_score:
+                type: number
+                example: 8.5
+              affected_technologies:
+                type: array
+                items:
+                  type: string
+                example: [elasticsearch, java]
+              description:
+                type: string
+              remediation:
+                type: string
+              published_at:
+                type: string
+                example: "2026-07-02T00:00:00Z"
+      responses:
+        201:
+          description: CVE ingested
+        409:
+          description: CVE already exists
+
+  /api/customers/:
+    get:
+      tags: [Customers]
+      summary: List customers (admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Customer list
+        403:
+          description: Admin access required
+    post:
+      tags: [Customers]
+      summary: Provision new customer (admin only)
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required: [username, company_name, email]
+            properties:
+              username:
+                type: string
+                example: acme_ops
+              password:
+                type: string
+                example: customer123
+              company_name:
+                type: string
+                example: Acme Corp
+              email:
+                type: string
+                example: security@acme.com
+              security_tier:
+                type: string
+                enum: [Standard Guard, Enhanced Guard, Critical Defense Plus]
+              tech_stack:
+                type: array
+                items:
+                  type: string
+      responses:
+        201:
+          description: Customer created
+
+  /api/customers/{customer_id}/stack:
+    put:
+      tags: [Customers]
+      summary: Update customer tech stack
+      description: Admin can update any customer. Customers can update their own stack only.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: customer_id
+          type: string
+          required: true
+          description: MongoDB customer ID
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            required: [tech_stack]
+            properties:
+              tech_stack:
+                type: array
+                items:
+                  type: string
+                example: [nginx, redis, elasticsearch]
+      responses:
+        200:
+          description: Stack updated
+
+  /api/customers/{customer_id}/notifications:
+    put:
+      tags: [Customers]
+      summary: Update notification settings
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: customer_id
+          type: string
+          required: true
+        - in: body
+          name: body
+          schema:
+            type: object
+            properties:
+              notification_settings:
+                type: object
+                properties:
+                  dashboard:
+                    type: boolean
+                  email:
+                    type: boolean
+                  slack:
+                    type: boolean
+                  webhook:
+                    type: boolean
+              slack_webhook_url:
+                type: string
+              custom_webhook_url:
+                type: string
+      responses:
+        200:
+          description: Settings updated
+
+  /api/alerts/:
+    get:
+      tags: [Alerts]
+      summary: List alerts
+      description: Admins see all alerts. Customers see only their own.
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: severity
+          type: string
+        - in: query
+          name: cve_id
+          type: string
+        - in: query
+          name: status
+          type: string
+          enum: [Dispatched, Read, Failed]
+      responses:
+        200:
+          description: Alert history
+
+  /api/alerts/stats:
+    get:
+      tags: [Alerts]
+      summary: Alert statistics (admin only)
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Aggregated alert stats
+          schema:
+            type: object
+            properties:
+              total_alerts:
+                type: integer
+              critical_alerts:
+                type: integer
+              dispatched:
+                type: integer
+              customers_affected:
+                type: integer
+
+  /api/alerts/{alert_id}/read:
+    put:
+      tags: [Alerts]
+      summary: Mark alert as read
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: alert_id
+          type: string
+          required: true
+      responses:
+        200:
+          description: Alert marked as read

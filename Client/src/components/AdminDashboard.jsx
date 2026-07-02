@@ -117,7 +117,7 @@ export default function AdminDashboard({
   };
 
   // Provision Client Submit Handler
-  const handleProvisionClient = (e) => {
+  const handleProvisionClient = async (e) => {
     e.preventDefault();
     setProvisionError('');
 
@@ -130,7 +130,6 @@ export default function AdminDashboard({
       return;
     }
 
-    // Check if username is taken
     const usernameTaken = customers.some(
       c => c.username.toLowerCase() === trimmedUsername
     ) || trimmedUsername === 'admin';
@@ -140,41 +139,23 @@ export default function AdminDashboard({
       return;
     }
 
-    // Initials Helper
-    const getInitials = (name) => {
-      const parts = name.split(' ').filter(p => p.trim().length > 0);
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[1][0]).toUpperCase();
-      }
-      return name.slice(0, 2).toUpperCase();
-    };
+    try {
+      await onAddCustomer({
+        username: trimmedUsername,
+        company_name: trimmedCompanyName,
+        email: trimmedEmail,
+        security_tier: securityTier,
+        tech_stack: [],
+      });
 
-    const newCustomerObj = {
-      id: `cust-${Date.now()}`,
-      username: trimmedUsername,
-      company_name: trimmedCompanyName,
-      email: trimmedEmail,
-      logo_initials: getInitials(trimmedCompanyName),
-      security_tier: securityTier,
-      tech_stack: [],
-      notification_settings: {
-        dashboard: true,
-        email: true,
-        slack: false,
-        webhook: false
-      }
-    };
-
-    onAddCustomer(newCustomerObj);
-
-    // Reset Form Fields
-    setCompanyName('');
-    setCustUsername('');
-    setCustEmail('');
-    setSecurityTier('Standard Guard');
-
-    // Close Modal
-    setIsProvisionOpen(false);
+      setCompanyName('');
+      setCustUsername('');
+      setCustEmail('');
+      setSecurityTier('Standard Guard');
+      setIsProvisionOpen(false);
+    } catch (err) {
+      setProvisionError(err.message || 'Failed to provision customer.');
+    }
   };
 
   return (

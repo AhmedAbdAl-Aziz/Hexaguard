@@ -1,41 +1,24 @@
 import React, { useState } from 'react';
 import { Shield, Lock, User, Terminal } from 'lucide-react';
-import { INITIAL_CUSTOMERS } from '../data/mockData';
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, loading }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+
     if (!username.trim() || !password.trim()) {
       setError('Credentials cannot be empty.');
       return;
     }
 
-    // Admin login check
-    if (username.toLowerCase() === 'admin' && password === 'admin123') {
-      onLogin({
-        role: 'admin',
-        username: 'admin',
-        company_name: 'HexaGuard HQ'
-      });
-      return;
-    }
-
-    // Customer login check
-    const matchedCustomer = INITIAL_CUSTOMERS.find(
-      c => c.username.toLowerCase() === username.toLowerCase() && password === 'customer123'
-    );
-
-    if (matchedCustomer) {
-      onLogin({
-        role: 'customer',
-        ...matchedCustomer
-      });
-    } else {
-      setError('Invalid username or password.');
+    try {
+      await onLogin({ username: username.trim(), password });
+    } catch (err) {
+      setError(err.message || 'Invalid username or password.');
     }
   };
 
@@ -48,7 +31,7 @@ export default function Login({ onLogin }) {
           </div>
           <h2>HEXAGUARD</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem', fontFamily: 'var(--font-tech)' }}>
-            CVE Vulnerability Tracker & Alerts
+            CVE Vulnerability Tracker &amp; Alerts
           </p>
         </div>
 
@@ -80,6 +63,7 @@ export default function Login({ onLogin }) {
                 placeholder="Username (e.g. admin or acme_security)"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -96,15 +80,20 @@ export default function Login({ onLogin }) {
                 placeholder="Enter password (e.g. admin123 / customer123)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-            Initialize Access <Terminal size={16} />
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: '100%', marginTop: '1rem' }}
+            disabled={loading}
+          >
+            {loading ? 'Authenticating...' : <><Terminal size={16} /> Initialize Access</>}
           </button>
         </form>
-
       </div>
     </div>
   );

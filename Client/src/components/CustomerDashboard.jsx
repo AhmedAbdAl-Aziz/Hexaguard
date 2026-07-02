@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, ShieldCheck, Activity, Settings, 
   Terminal, Server, LogOut, ChevronDown, ChevronUp, Bell, Plus, Trash2 
@@ -7,9 +7,11 @@ import { checkStackMatch } from '../data/mockData';
 
 export default function CustomerDashboard({ 
   user, 
-  cves, 
+  cves,
+  alertLogs = [],
   onLogout, 
-  onUpdateCustomerStack 
+  onUpdateCustomerStack,
+  onUpdateNotifications,
 }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [expandedCve, setExpandedCve] = useState(null);
@@ -24,6 +26,12 @@ export default function CustomerDashboard({
     slack: false,
     webhook: false
   });
+
+  useEffect(() => {
+    if (user.notification_settings) {
+      setNotifSettings(user.notification_settings);
+    }
+  }, [user.notification_settings]);
 
   const handleToggleExpand = (cveId) => {
     if (expandedCve === cveId) {
@@ -79,12 +87,20 @@ export default function CustomerDashboard({
     onUpdateCustomerStack(user.id, updatedStack);
   };
 
-  const toggleNotif = (channel) => {
-    setNotifSettings({
+  const toggleNotif = async (channel) => {
+    const updated = {
       ...notifSettings,
-      [channel]: !notifSettings[channel]
-    });
+      [channel]: !notifSettings[channel],
+    };
+    setNotifSettings(updated);
+    try {
+      await onUpdateNotifications(user.id, { notification_settings: updated });
+    } catch {
+      setNotifSettings(notifSettings);
+    }
   };
+
+  const myAlerts = alertLogs.filter((a) => a.customer_id === user.id);
 
   return (
     <div className="app-container">
@@ -306,6 +322,41 @@ export default function CustomerDashboard({
               )}
             </div>
           </>
+        )}
+
+        {activeTab === 'dashboard' && myAlerts.length > 0 && (
+          <section className="glass-card" style={{ marginTop: '1.5rem' }}>
+            <h3 style={{ marginBottom: '1rem' }}>RECENT ALERT DISPATCHES</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {myAlerts.slice(0, 10).map((alert) => (
+                <div
+                  key={alert.id}
+                  style={{
+                    padding: '1rem',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '8px',
+                    background: 'rgba(0,0,0,0.2)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ fontFamily: 'var(--font-tech)', color: 'var(--color-cyan)' }}>
+                      {alert.cve_id}
+                    </span>
+                    <span className={`badge ${alert.severity.toLowerCase()}`}>{alert.severity}</span>
+                    <span className="badge tech">{alert.technology}</span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {alert.status} · {new Date(alert.timestamp).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {activeTab === 'stack' && (
