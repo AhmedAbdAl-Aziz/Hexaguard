@@ -12,7 +12,8 @@ import logging
 
 from bson import ObjectId
 
-from extensions import mongo, socketio
+from extensions import socketio
+from fallback_store import get_db
 from models.alert import build_alert, serialize_alert
 from services.notifications import send_email_alert, send_slack_alert, send_webhook_alert
 
@@ -79,9 +80,10 @@ def dispatch_alerts_for_cve(cve: dict) -> list[dict]:
     Receives a serialized CVE dict (from MongoDB, _id already as string).
     Returns the list of alert dicts that were created.
     """
+    db = get_db()
     dispatched = []
     customers = list(
-        mongo.db.users.find({
+        db.users.find({
             "role": "customer",
             "tech_stack": {"$exists": True, "$not": {"$size": 0}},
         })
@@ -104,7 +106,7 @@ def dispatch_alerts_for_cve(cve: dict) -> list[dict]:
         created_alerts = []
 
         for tech in matched_techs:
-            existing = mongo.db.alerts.find_one({
+            existing = db.alerts.find_one({
                 "customer_id": ObjectId(customer_id),
                 "cve_id": cve["cve_id"],
                 "technology": tech,
@@ -126,7 +128,7 @@ def dispatch_alerts_for_cve(cve: dict) -> list[dict]:
                 technology=tech,
             )
 
-            result = mongo.db.alerts.insert_one(alert_doc)
+            result = db.alerts.insert_one(alert_doc)
             alert_doc["_id"] = result.inserted_id
             serialized = serialize_alert(alert_doc)
             created_alerts.append((alert_doc, serialized))
@@ -164,7 +166,7 @@ def dispatch_alerts_for_cve(cve: dict) -> list[dict]:
         notif_results = _send_external_notifications(customer, cve, matched_techs)
 
         for alert_doc, _ in created_alerts:
-            mongo.db.alerts.update_one(
+            db.alerts.update_one(
                 {"_id": alert_doc["_id"]},
                 {"$set": {"notifications_sent": notif_results}},
             )

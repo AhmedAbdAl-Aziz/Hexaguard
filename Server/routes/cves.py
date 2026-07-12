@@ -17,7 +17,8 @@ from flask_jwt_extended import (
     get_jwt,
 )
 
-from extensions import mongo, socketio
+from extensions import socketio
+from fallback_store import get_db
 
 from models.cve import (
     build_cve,
@@ -32,7 +33,8 @@ from services.alert_dispatcher import (
 cves_bp = Blueprint(
     "cves",
     __name__,
-    url_prefix="/api/cves"
+    url_prefix="/api/cves",
+    
 )
 
 
@@ -125,24 +127,39 @@ def list_cves():
         ]
 
 
+    page = int(request.args.get("page", 1))
+    limit = min(int(request.args.get("limit", 200)), 2000)
+    db = get_db()
+    total = db.cves_db.count_documents(query)
 
     docs = list(
-        mongo.db.cves_db
+        db.cves_db
         .find(query)
         .sort("ingested_at", -1)
-        .limit(200)
+        .skip((page - 1) * limit)
+        .limit(limit)
     )
 
 
     return jsonify(
-        [
-            serialize_cve(doc)
-            for doc in docs
-        ]
+        {
+            "total": total,
+            "page": page,
+            "cves": [serialize_cve(doc) for doc in docs],   
+        }
     ), 200
 
 
-
+@cves_bp.get("/stats")
+@jwt_required()
+def cve_stats():
+    db = get_db()
+    total = db.cves_db.count_documents({})
+    critical = db.cves_db.count_documents({"severity": "CRITICAL"})
+    high = db.cves_db.count_documents({"severity": "HIGH"})
+    medium = db.cves_db.count_documents({"severity": "MEDIUM"})
+    low = db.cves_db.count_documents({"severity": "LOW"})
+    return jsonify({"total": total, "critical": critical, "high": high, "medium": medium, "low": low}), 200
 
 
 # POST /api/cves
@@ -237,7 +254,8 @@ def ingest_cve():
 
 
 
-    existing = mongo.db.cves_db.find_one(
+    db = get_db()
+    existing = db.cves_db.find_one(
         {
             "cve_id":
             data["cve_id"]
@@ -274,7 +292,7 @@ def ingest_cve():
 
 
 
-    result = mongo.db.cves_db.insert_one(
+    result = db.cves_db.insert_one(
         cve_doc
     )
 

@@ -43,9 +43,9 @@ export default function AdminDashboard({
   const [provisionError, setProvisionError] = useState('');
 
   // Get unique technologies from all CVEs for filter dropdown
-  const allTechs = Array.from(
-    new Set(cves.flatMap(c => c.affected_technologies))
-  );
+ const allTechs = Array.from(
+  new Set((cves || []).flatMap(c => c.affected_technologies || []))
+);
 
   const handleToggleExpand = (cveId) => {
     if (expandedCve === cveId) {

@@ -15,8 +15,9 @@ class Config:
     # Scraper auth token (Bearer token used by crawler scripts)
     SCRAPER_API_TOKEN = os.getenv("SCRAPER_API_TOKEN", "scraper-dev-token")
 
-    # CORS
-    FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    # CORS — accept both common Vite dev ports
+    _origin_env = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173")
+    FRONTEND_ORIGIN = [o.strip() for o in _origin_env.split(",")]
 
     # Email SMTP settings
     SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")

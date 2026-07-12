@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from bson import ObjectId
 
-from extensions import mongo
+from fallback_store import get_db
 from models.user import build_user, serialize_user
 
 customers_bp = Blueprint("customers", __name__, url_prefix="/api/customers")
@@ -31,7 +31,8 @@ def list_customers():
     if err:
         return err
 
-    docs = list(mongo.db.users.find({"role": "customer"}).sort("created_at", -1))
+    db = get_db()
+    docs = list(db.users.find({"role": "customer"}).sort("created_at", -1))
     return jsonify([serialize_user(d) for d in docs]), 200
 
 
@@ -54,7 +55,8 @@ def provision_customer():
     username = data["username"].strip().lower()
 
     # Reject duplicate usernames
-    if mongo.db.users.find_one({"username": username}):
+    db = get_db()
+    if db.users.find_one({"username": username}):
         return jsonify({"error": "Username is already registered. Please choose a unique login identifier."}), 409
 
     try:
@@ -71,7 +73,7 @@ def provision_customer():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    result = mongo.db.users.insert_one(user_doc)
+    result = db.users.insert_one(user_doc)
     user_doc["_id"] = result.inserted_id
 
     return jsonify({
@@ -107,12 +109,13 @@ def update_stack(customer_id: str):
 
     cleaned = [t.strip().lower() for t in new_stack if isinstance(t, str) and t.strip()]
 
-    mongo.db.users.update_one(
+    db = get_db()
+    db.users.update_one(
         {"_id": oid},
         {"$set": {"tech_stack": cleaned}},
     )
 
-    updated = mongo.db.users.find_one({"_id": oid})
+    updated = db.users.find_one({"_id": oid})
     if not updated:
         return jsonify({"error": "Customer not found."}), 404
 
@@ -157,9 +160,10 @@ def update_notifications(customer_id: str):
     if not update_fields:
         return jsonify({"error": "No valid fields to update."}), 400
 
-    mongo.db.users.update_one({"_id": oid}, {"$set": update_fields})
+    db = get_db()
+    db.users.update_one({"_id": oid}, {"$set": update_fields})
 
-    updated = mongo.db.users.find_one({"_id": oid})
+    updated = db.users.find_one({"_id": oid})
     if not updated:
         return jsonify({"error": "Customer not found."}), 404
 

@@ -39,8 +39,11 @@ export async function login(username, password) {
 }
 
 export async function getCurrentUser() {
+  // اتصل بالباك عشان يتحقق من الـ token
   const data = await request("/api/auth/me");
-  return data.user;
+  const user = normalizeUser(data.user || data);
+  localStorage.setItem("hg_user", JSON.stringify(user));
+  return user;
 }
 
 export function logout() {
@@ -54,11 +57,15 @@ export async function fetchCves({ search = "", severity = "", technology = "" } 
   if (search) params.set("search", search);
   if (severity && severity !== "ALL") params.set("severity", severity);
   if (technology && technology !== "ALL") params.set("technology", technology);
+  params.set("limit", "500");
 
   const qs = params.toString();
-  return request(`/api/cves/${qs ? "?" + qs : ""}`);
-}
+  const data = await request(`/api/cves?${qs}`);
 
+  // الباك بيرجع array مباشرة مش { cves: [...] }
+  const arr = Array.isArray(data) ? data : (data.cves || data.data || []);
+  return arr.map(normalizeCve);
+}
 export async function ingestCve(cvePayload) {
   return request("/api/cves/", {
     method: "POST",

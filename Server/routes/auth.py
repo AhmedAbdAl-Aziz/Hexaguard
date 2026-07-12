@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from bson import ObjectId
 
-from extensions import mongo
+from fallback_store import get_db
 from models.user import check_password, serialize_user
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -21,7 +21,8 @@ def login():
     if not username or not password:
         return jsonify({"error": "Username and password are required."}), 400
 
-    user = mongo.db.users.find_one({"username": username})
+    db = get_db()
+    user = db.users.find_one({"username": username})
 
     if not user:
         return jsonify({"error": "Invalid username or password."}), 401
@@ -51,7 +52,8 @@ def me():
     except Exception:
         return jsonify({"error": "Invalid identity token."}), 400
 
-    user = mongo.db.users.find_one({"_id": oid})
+    db = get_db()
+    user = db.users.find_one({"_id": oid})
     if not user:
         return jsonify({"error": "User not found."}), 404
 
